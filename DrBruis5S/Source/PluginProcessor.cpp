@@ -19,13 +19,26 @@ DrBruis5SAudioProcessor::DrBruis5SAudioProcessor()
                       #endif
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
-                       )
+                       ), treeState(*this, nullptr, "PARAMETERS", createParameterLayout())
 #endif
 {
 }
 
 DrBruis5SAudioProcessor::~DrBruis5SAudioProcessor()
 {
+}
+
+juce::AudioProcessorValueTreeState::ParameterLayout DrBruis5SAudioProcessor::createParameterLayout()
+{
+    std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
+    
+    auto pGain = std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"gain", 1}, "Gain", -24.0, 24.0, 0.0);
+    auto pPhase = std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"phase", 1}, "Phase", false);
+    
+    params.push_back(std::move(pGain));
+    params.push_back(std::move(pPhase));
+    
+    return { params.begin(), params.end()};
 }
 
 //==============================================================================
@@ -137,6 +150,12 @@ void DrBruis5SAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
 
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
+    
+    float dbGain =*treeState.getRawParameterValue("gain");
+//    float rawGain = std::pow(10, dbGain / 20);
+    float rawGain = juce::Decibels::decibelsToGain(dbGain);
+    
+    bool isPhase = *treeState.getRawParameterValue("phase");
 
     juce::dsp::AudioBlock<float> block (buffer);
     
@@ -146,7 +165,12 @@ void DrBruis5SAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
 
         for(int sample = 0; sample < block.getNumSamples(); ++sample)
         {
-            channelData[sample] *= 2.0;
+            if(isPhase)
+            {
+                channelData[sample] *= rawGain * -1.0;
+            } else {
+                channelData[sample] *= rawGain;
+            }
         }
     }
 }
@@ -159,7 +183,8 @@ bool DrBruis5SAudioProcessor::hasEditor() const
 
 juce::AudioProcessorEditor* DrBruis5SAudioProcessor::createEditor()
 {
-    return new DrBruis5SAudioProcessorEditor (*this);
+//    return new DrBruis5SAudioProcessorEditor (*this);
+    return new juce::GenericAudioProcessorEditor (*this);
 }
 
 //==============================================================================
